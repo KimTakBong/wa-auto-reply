@@ -140,6 +140,15 @@ async function migrate() {
     `).catch(() => {});
     console.log('✅ Columns "auto_create_rules", "auto_rule_threshold", "reply_delay_min_ms", "reply_delay_max_ms" added to ai_settings');
 
+    // Tambah kolom untuk Ollama support
+    await db.query(`
+      ALTER TABLE ai_settings
+      ADD COLUMN IF NOT EXISTS ai_provider ENUM('groq', 'ollama') DEFAULT 'groq' AFTER is_enabled,
+      ADD COLUMN IF NOT EXISTS ollama_url VARCHAR(255) DEFAULT 'http://localhost:11434' AFTER groq_model,
+      ADD COLUMN IF NOT EXISTS ollama_model VARCHAR(100) DEFAULT 'llama3' AFTER ollama_url
+    `).catch(() => {});
+    console.log('✅ Columns "ai_provider", "ollama_url", "ollama_model" added to ai_settings');
+
     // Insert default AI settings
     const [existingSettings] = await db.query('SELECT id FROM ai_settings LIMIT 1');
     if (existingSettings.length === 0) {
@@ -151,8 +160,8 @@ Jika kamu tidak tahu jawabannya, jangan mengarang. Katakan dengan jujur bahwa ka
 Jangan pernah memberikan informasi yang tidak kamu yakini kebenarannya.`;
 
       await db.query(
-        `INSERT INTO ai_settings (is_enabled, system_prompt, allowed_topics, blocked_keywords, off_topic_reply, max_history, rate_limit_seconds, fallback_reply, groq_model)
-         VALUES (1, ?, '', '', 'Maaf, saya hanya bisa membantu tentang topik tertentu. Ada hal lain yang bisa dibantu?', 20, 5, 'Maaf, saya sedang sibuk. Coba lagi dalam beberapa menit ya.', 'llama-3.3-70b-versatile')`,
+        `INSERT INTO ai_settings (is_enabled, ai_provider, system_prompt, allowed_topics, blocked_keywords, off_topic_reply, max_history, rate_limit_seconds, fallback_reply, groq_model, ollama_url, ollama_model)
+         VALUES (1, 'groq', ?, '', '', 'Maaf, saya hanya bisa membantu tentang topik tertentu. Ada hal lain yang bisa dibantu?', 20, 5, 'Maaf, saya sedang sibuk. Coba lagi dalam beberapa menit ya.', 'llama-3.3-70b-versatile', 'http://localhost:11434', 'llama3')`,
         [defaultPrompt],
       );
       console.log('✅ Default AI settings inserted');

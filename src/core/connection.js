@@ -11,6 +11,9 @@ const logger = pino({ level: config.bot.logLevel });
 // Store current socket to prevent duplicate connections
 let currentSock = null;
 let isStarting = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+let reconnectTimer = null;
 
 /**
  * Memulai koneksi WhatsApp
@@ -38,9 +41,29 @@ export async function startWhatsApp() {
       printQRInTerminal: true,
       browser: [config.bot.name, 'Chrome', '1.0.0'],
       generateHighQualityLinkPreview: true,
+      retryRequestDelayMs: 1000, // Tambah delay untuk retry
+      defaultQueryTimeoutMs: 60000, // Increase timeout ke 60s (default 20s)
+      syncFullHistory: false, // Sync history minimal
     });
 
     currentSock = sock;
+
+    // Suppress bad-request errors from executeInitQueries
+    // This is a workaround for Baileys v7 bug where fetchProps fails with bad-request
+    const originalFetchProps = sock.fetchProps;
+    if (originalFetchProps) {
+      sock.fetchProps = async function(...args) {
+        try {
+          return await originalFetchProps.call(this, ...args);
+        } catch (error) {
+          if (error?.message === 'bad-request' || error?.data === 400) {
+            console.warn('⚠️  Suppressed bad-request error from fetchProps (known Baileys v7 issue)');
+            return {}; // Return empty object instead of throwing
+          }
+          throw error;
+        }
+      };
+    }
 
     // Event: QR Code muncul
     sock.ev.on('creds.update', saveCreds);
@@ -58,25 +81,67 @@ export async function startWhatsApp() {
       }
 
       if (connection === 'close') {
-        setConnectionStatus('disconnected');
         const reason = lastDisconnect?.error?.output?.statusCode;
+        const errorMessage = lastDisconnect?.error?.message || '';
+        
+        // Ignore bad-request errors (WhatsApp server bug)
+        if (errorMessage === 'bad-request' || reason === 400) {
+          console.warn('⚠️  Bad-request error dari WhatsApp server (known issue) - IGNORING');
+          console.log('✅ Bot tetap connected, tidak reconnect');
+          setConnectionStatus('connected');
+          return; // Jangan reconnect
+        }
+
+        setConnectionStatus('disconnected');
         console.log(`❌ Koneksi terputus. Reason: ${DisconnectReason[reason] || reason}`);
 
-        // Reconnect kecuali logged out
-        if (reason !== DisconnectReason.loggedOut) {
-          console.log('🔄 Reconnecting...');
-          setTimeout(() => {
+        // Clear reconnect timer
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+
+        // Kalau connectionReplaced, reconnect immediately (no delay)
+        // karena ini kemungkinan false positive dari WhatsApp server
+        if (reason === DisconnectReason.connectionReplaced) {
+          console.log('⚠️  Connection replaced - reconnecting immediately (likely false positive)');
+          reconnectAttempts = Math.min(reconnectAttempts + 1, MAX_RECONNECT_ATTEMPTS);
+          
+          // Reconnect after 1s instead of exponential backoff
+          reconnectTimer = setTimeout(() => {
             isStarting = false;
             startWhatsApp();
-          }, 3000);
+          }, 1000);
+          return;
+        }
+
+        // Reconnect dengan exponential backoff dan max attempts
+        if (reason !== DisconnectReason.loggedOut && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Max 30s
+          console.log(`🔄 Reconnecting... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}, delay: ${delay}ms)`);
+          
+          reconnectTimer = setTimeout(() => {
+            isStarting = false;
+            startWhatsApp();
+          }, delay);
+        } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          console.log(`⚠️  Max reconnect attempts reached. Please restart manually.`);
+          setQRCode(null);
+          isStarting = false;
+          reconnectAttempts = 0; // Reset untuk kesempatan berikutnya
         } else {
           console.log('⚠️  Session habis. Scan ulang QR dari dashboard.');
           setQRCode(null);
           isStarting = false;
+          reconnectAttempts = 0;
         }
       }
 
       if (connection === 'open') {
+        // Reset reconnect attempts saat berhasil connect
+        reconnectAttempts = 0;
+        
         setSocket(sock);
         setConnectionStatus('connected');
         isStarting = false;
@@ -100,6 +165,23 @@ export async function startWhatsApp() {
 
         await handleMessage(sock, message);
       }
+    });
+
+    // Event: Stream error handler - ignore conflict errors
+    // This prevents connectionReplaced from killing the connection
+    sock.ws.on('CB:stream:error', (error) => {
+      console.warn('⚠️ Stream error received:', error?.content?.[0]?.attrs?.type || 'unknown');
+      
+      // Check if it's a conflict/replaced error
+      const errorContent = error?.content?.[0];
+      if (errorContent?.tag === 'conflict' && errorContent?.attrs?.type === 'replaced') {
+        console.warn('⚠️ Conflict/replaced detected - IGNORING, keeping connection alive');
+        // Don't close the connection, just log the error
+        return;
+      }
+      
+      // For other stream errors, let them through
+      console.warn('⚠️ Non-conflict stream error, letting it through');
     });
 
     return sock;

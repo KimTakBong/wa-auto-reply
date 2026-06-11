@@ -19,7 +19,8 @@ export async function updateAISettings(settings) {
   const values = [];
 
   const allowedFields = [
-    'is_enabled', 'groq_api_key', 'groq_model', 'system_prompt', 'allowed_topics', 'blocked_keywords',
+    'is_enabled', 'ai_provider', 'groq_api_key', 'groq_model', 'ollama_url', 'ollama_model',
+    'system_prompt', 'allowed_topics', 'blocked_keywords',
     'off_topic_reply', 'max_history', 'rate_limit_seconds',
     'fallback_reply', 'auto_create_rules', 'auto_rule_threshold',
     'reply_delay_min_ms', 'reply_delay_max_ms',
@@ -51,10 +52,13 @@ Jika kamu tidak tahu jawabannya, jangan mengarang. Katakan dengan jujur bahwa ka
 Jangan pernah memberikan informasi yang tidak kamu yakini kebenarannya.`;
 
   await db.query(
-    `UPDATE ai_settings SET 
+    `UPDATE ai_settings SET
       is_enabled = 1,
+      ai_provider = 'groq',
       groq_api_key = NULL,
       groq_model = 'llama-3.3-70b-versatile',
+      ollama_url = 'http://localhost:11434',
+      ollama_model = 'llama3',
       system_prompt = ?,
       allowed_topics = '',
       blocked_keywords = '',

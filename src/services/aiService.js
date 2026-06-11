@@ -3,6 +3,7 @@ import config from '../core/config.js';
 import { saveMemory, getHistory } from './memoryService.js';
 import { getAISettings } from './aiSettingsService.js';
 import { hasBlockedKeyword, isTopicAllowed } from './topicFilterService.js';
+import { generateCompletion as ollamaGenerate } from './ollamaClient.js';
 
 // Initialize Groq client (lazy - created when needed)
 let groqClient = null;
@@ -65,7 +66,7 @@ export async function refreshSettingsCache() {
 }
 
 /**
- * Generate AI reply menggunakan Groq
+ * Generate AI reply menggunakan Groq atau Ollama
  */
 export async function getAIReply(userJid, userMessage) {
   try {
@@ -83,11 +84,6 @@ export async function getAIReply(userJid, userMessage) {
     // Cek apakah AI enabled
     if (!settings.is_enabled) {
       console.log('⏭️ AI is disabled in settings');
-      return null;
-    }
-
-    if (!config.ai.groqApiKey && !settings?.groq_api_key) {
-      console.warn('⚠️ GROQ_API_KEY tidak diset di .env maupun database.');
       return null;
     }
 
@@ -122,18 +118,44 @@ export async function getAIReply(userJid, userMessage) {
     // Tambahkan pesan terbaru
     messages.push({ role: 'user', content: userMessage });
 
-    console.log(`🤖 Sending to Groq (${messages.length} messages, model: ${settings.groq_model})...`);
+    // Tentukan provider yang dipakai
+    const provider = settings.ai_provider || 'groq';
+    
+    let aiReply = null;
 
-    const client = getGroqClient();
-    const completion = await client.chat.completions.create({
-      messages,
-      model: settings.groq_model || config.ai.groqModel,
-      temperature: 0.7,
-      max_tokens: 500,
-      top_p: 1,
-    });
+    if (provider === 'ollama') {
+      // === OLLAMA PROVIDER ===
+      const ollamaUrl = settings.ollama_url || 'http://localhost:11434';
+      const ollamaModel = settings.ollama_model || 'llama3';
+      
+      console.log(`🤖 Sending to Ollama (${messages.length} messages, model: ${ollamaModel}, url: ${ollamaUrl})...`);
 
-    const aiReply = completion.choices[0]?.message?.content?.trim();
+      aiReply = await ollamaGenerate(ollamaUrl, ollamaModel, messages, {
+        temperature: 0.7,
+        max_tokens: 500,
+        top_p: 1,
+      });
+
+    } else {
+      // === GROQ PROVIDER (default) ===
+      if (!config.ai.groqApiKey && !settings?.groq_api_key) {
+        console.warn('⚠️ GROQ_API_KEY tidak diset di .env maupun database.');
+        return null;
+      }
+
+      console.log(`🤖 Sending to Groq (${messages.length} messages, model: ${settings.groq_model})...`);
+
+      const client = getGroqClient();
+      const completion = await client.chat.completions.create({
+        messages,
+        model: settings.groq_model || config.ai.groqModel,
+        temperature: 0.7,
+        max_tokens: 500,
+        top_p: 1,
+      });
+
+      aiReply = completion.choices[0]?.message?.content?.trim();
+    }
 
     if (!aiReply) {
       console.warn('⚠️ AI returned empty response');
@@ -147,12 +169,12 @@ export async function getAIReply(userJid, userMessage) {
 
     return aiReply;
   } catch (error) {
-    console.error('❌ Groq API error:', error.message);
+    console.error(`❌ AI provider error:`, error.message);
 
-    if (error.status === 429) {
-      console.warn('⚠️ Rate limited by Groq');
-    } else if (error.status === 401) {
-      console.error('❌ Invalid GROQ_API_KEY');
+    if (error.status === 429 || error.message.includes('429')) {
+      console.warn('⚠️ Rate limited');
+    } else if (error.status === 401 || error.message.includes('401')) {
+      console.error('❌ Invalid API key');
     }
 
     return null;

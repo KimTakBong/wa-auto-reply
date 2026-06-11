@@ -594,8 +594,11 @@ async function loadAISettings() {
     const s = res.data;
 
     document.getElementById('aiEnabled').checked = s.is_enabled === 1;
+    document.getElementById('aiProvider').value = s.ai_provider || 'groq';
     document.getElementById('groqApiKey').value = s.groq_api_key || '';
     document.getElementById('groqModel').value = s.groq_model || 'llama-3.3-70b-versatile';
+    document.getElementById('ollamaUrl').value = s.ollama_url || 'http://localhost:11434';
+    document.getElementById('ollamaModel').value = s.ollama_model || 'llama3';
     document.getElementById('systemPrompt').value = s.system_prompt || '';
     document.getElementById('allowedTopics').value = s.allowed_topics || '';
     document.getElementById('blockedKeywords').value = s.blocked_keywords || '';
@@ -607,17 +610,43 @@ async function loadAISettings() {
     document.getElementById('replyDelayMax').value = s.reply_delay_max_ms || 3000;
     document.getElementById('autoCreateRules').checked = s.auto_create_rules === 1;
     document.getElementById('autoRuleThreshold').value = s.auto_rule_threshold || 2;
+
+    // Toggle provider settings
+    toggleProviderSettings();
   } catch (error) {
     showToast(error.message, 'error');
   }
 }
+
+// Toggle provider settings visibility
+function toggleProviderSettings() {
+  const provider = document.getElementById('aiProvider').value;
+  const groqSettings = document.getElementById('groqSettings');
+  const ollamaSettings = document.getElementById('ollamaSettings');
+
+  if (provider === 'ollama') {
+    groqSettings.style.display = 'none';
+    ollamaSettings.style.display = 'block';
+  } else {
+    groqSettings.style.display = 'block';
+    ollamaSettings.style.display = 'none';
+  }
+}
+
+// Listen for provider changes
+document.getElementById('aiProvider')?.addEventListener('change', () => {
+  toggleProviderSettings();
+});
 
 document.getElementById('aiSettingsForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const body = {
     is_enabled: document.getElementById('aiEnabled').checked ? 1 : 0,
+    ai_provider: document.getElementById('aiProvider').value,
     groq_model: document.getElementById('groqModel').value,
+    ollama_url: document.getElementById('ollamaUrl').value,
+    ollama_model: document.getElementById('ollamaModel').value,
     system_prompt: document.getElementById('systemPrompt').value,
     allowed_topics: document.getElementById('allowedTopics').value,
     blocked_keywords: document.getElementById('blockedKeywords').value,

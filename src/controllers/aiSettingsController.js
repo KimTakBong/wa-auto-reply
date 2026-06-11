@@ -21,11 +21,13 @@ export async function getSettings(req, res) {
  */
 export async function updateSettings(req, res) {
   try {
+    console.log('📝 Updating AI settings with:', JSON.stringify(req.body, null, 2));
     await updateAISettings(req.body);
     res.json({ success: true, message: 'AI settings berhasil diupdate' });
   } catch (error) {
-    console.error('Update AI settings error:', error.message);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    console.error('❌ Update AI settings error:', error.message);
+    console.error('❌ SQL Error:', error.sqlMessage || error.sql);
+    res.status(500).json({ success: false, message: `Internal server error: ${error.message}` });
   }
 }
 

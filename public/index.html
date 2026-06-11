@@ -554,22 +554,62 @@
                   </div>
                 </div>
 
-                <!-- Groq API Key -->
+                <!-- AI Provider Selection -->
                 <div class="mb-4">
-                  <label class="form-label fw-bold">Groq API Key</label>
-                  <input type="text" class="form-control" id="groqApiKey" placeholder="gsk_xxxxxxxxxxxx">
-                  <small class="text-muted">Daftar di <a href="https://console.groq.com" target="_blank">console.groq.com</a>. Kosongkan = pakai dari .env</small>
+                  <label class="form-label fw-bold">AI Provider</label>
+                  <select class="form-select" id="aiProvider">
+                    <option value="groq">Groq API (Cloud)</option>
+                    <option value="ollama">Ollama (Local)</option>
+                  </select>
+                  <small class="text-muted">Pilih provider AI: Groq (cloud) atau Ollama (local/self-hosted)</small>
                 </div>
 
-                <!-- Groq Model -->
-                <div class="mb-4">
-                  <label class="form-label fw-bold">Groq Model</label>
-                  <select class="form-select" id="groqModel">
-                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Recommended)</option>
-                    <option value="llama-3.1-8b-instant">Llama 3.1 8B (Faster)</option>
-                    <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-                    <option value="gemma2-9b-it">Gemma 2 9B</option>
-                  </select>
+                <!-- Groq Settings Section -->
+                <div id="groqSettings">
+                  <!-- Groq API Key -->
+                  <div class="mb-4">
+                    <label class="form-label fw-bold">Groq API Key</label>
+                    <input type="text" class="form-control" id="groqApiKey" placeholder="gsk_xxxxxxxxxxxx">
+                    <small class="text-muted">Daftar di <a href="https://console.groq.com" target="_blank">console.groq.com</a>. Kosongkan = pakai dari .env</small>
+                  </div>
+
+                  <!-- Groq Model -->
+                  <div class="mb-4">
+                    <label class="form-label fw-bold">Groq Model</label>
+                    <select class="form-select" id="groqModel">
+                      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Recommended)</option>
+                      <option value="llama-3.1-8b-instant">Llama 3.1 8B (Faster)</option>
+                      <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+                      <option value="gemma2-9b-it">Gemma 2 9B</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Ollama Settings Section -->
+                <div id="ollamaSettings" style="display: none;">
+                  <!-- Ollama URL -->
+                  <div class="mb-4">
+                    <label class="form-label fw-bold">Ollama Server URL</label>
+                    <input type="text" class="form-control" id="ollamaUrl" placeholder="http://localhost:11434">
+                    <small class="text-muted">URL server Ollama kamu (default: http://localhost:11434)</small>
+                  </div>
+
+                  <!-- Ollama Model -->
+                  <div class="mb-4">
+                    <label class="form-label fw-bold">Ollama Model</label>
+                    <input type="text" class="form-control" id="ollamaModel" placeholder="llama3, mistral, dll">
+                    <small class="text-muted">Nama model yang sudah terinstall di Ollama. Pastikan sudah di-pull.</small>
+                  </div>
+
+                  <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Setup Ollama:</strong>
+                    <ol class="mb-0 small">
+                      <li>Install Ollama dari <a href="https://ollama.com" target="_blank">ollama.com</a></li>
+                      <li>Pull model: <code>ollama pull llama3</code></li>
+                      <li>Pastikan Ollama berjalan dan bisa diakses</li>
+                    </ol>
+                  </div>
                 </div>
 
                 <!-- System Prompt -->
